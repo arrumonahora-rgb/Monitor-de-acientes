@@ -1,0 +1,57 @@
+Aqui está a documentação completa do seu código, bem como o passo a passo de como preparar o ambiente e executá-lo.
+🚀 Passo a Passo para Execução
+Para rodar este painel (dashboard) na sua máquina, você precisará preparar o ambiente Python e instalar as bibliotecas necessárias.
+Passo 1: Instalar o Python Certifique-se de que você tem o Python instalado na sua máquina (versão 3.8 ou superior recomendada).
+Passo 2: Instalar as bibliotecas dependentes Abra o seu terminal (ou Prompt de Comando/PowerShell no Windows) e instale as bibliotecas utilizadas no código executando o seguinte comando:
+Bash
+pip install streamlit pandas numpy requests plotly scikit-learn
+Passo 3: Salvar o código
+1.	Crie uma pasta no seu computador para o projeto.
+2.	Abra o seu editor de texto ou código favorito (como VS Code, Sublime Text, ou Bloco de Notas).
+3.	Cole o código que você forneceu.
+4.	Salve o arquivo com o nome app.py (ou monitor.py).
+Passo 4: Executar o aplicativo No terminal, navegue até a pasta onde você salvou o arquivo app.py e execute o comando do Streamlit:
+Bash
+streamlit run app.py
+Passo 5: Acessar o Dashboard Após executar o comando, o seu navegador padrão deverá abrir automaticamente em http://localhost:8501/ exibindo a aplicação. Caso não abra, basta copiar e colar essa URL no seu navegador.
+📚 Documentação do Código
+O código constrói uma aplicação web interativa utilizando o Streamlit. Ele simula um painel de monitoramento em tempo real de acidentes rodoviários (estilo PRF), utilizando um modelo de Machine Learning (Random Forest) para prever a gravidade dos acidentes (se possuem alto ou baixo risco de vítimas).
+Abaixo está a explicação detalhada de cada bloco do código:
+Configuração Inicial e Importações
+Importa as bibliotecas necessárias para manipulação de dados (pandas, numpy), requisições web (requests), visualização gráfica (plotly), machine learning (scikit-learn) e interface (streamlit). O st.set_page_config define o título da aba do navegador, o ícone e configura o layout da página para ocupar a tela toda (wide).
+1. Mapeamento de Coordenadas por Estado
+•	O que faz: Cria o dicionário COORDENADAS_UFS que contém a latitude e longitude central aproximada de cada um dos 26 estados brasileiros e do Distrito Federal.
+•	Detalhe: A chave delta é usada para criar uma margem de dispersão, garantindo que, ao gerar dados sintéticos, as ocorrências não fiquem todas em um único ponto exato, mas sim espalhadas pelo território do respectivo estado. A lista TODAS_UFS organiza as siglas em ordem alfabética.
+2. Treinamento do Modelo de Machine Learning
+•	O que faz: Cria e treina um modelo de classificação (Random Forest) para prever a gravidade do acidente.
+•	Como funciona:
+o	Usa o decorador @st.cache_resource, o que significa que o Streamlit treinará o modelo apenas uma vez na inicialização e o guardará na memória, evitando que o modelo seja retreinado a cada atualização da tela.
+o	Gera 2000 linhas de dados sintéticos históricos (X_hist), com atributos como fase do dia, clima, tipo de pista, número de pessoas e veículos.
+o	Cria a variável alvo (y_hist), onde acidentes com mais de 2 veículos, chuva ou à noite têm maior probabilidade de serem graves (valor 1).
+o	Treina o RandomForestClassifier e retorna o modelo pronto junto com o nome das colunas necessárias para fazer novas predições.
+3. Consumo da API em Tempo Real (Simulador)
+•	O que faz: A função buscar_dados_api(url_api) tenta acessar uma API real (passada por parâmetro). Se falhar (como é o caso da URL de exemplo que não existe), ela executa um bloco de "Fallback" (plano B).
+•	O Fallback: Sorteia um estado brasileiro, gera coordenadas geográficas aleatórias dentro do limite geográfico daquele estado (usando o delta), e sorteia características do acidente (clima, pista, número de pessoas). Retorna esses dados simulados empacotados em um DataFrame do Pandas, simulando uma chegada de dados de um sensor rodoviário em tempo real.
+4. Interface e Gerenciamento de Estado
+•	Gerenciamento de Estado (st.session_state): Inicia a variável df_tempo_real na memória do navegador do usuário para acumular os dados recebidos. Se essa variável não existir, ela é criada como um DataFrame vazio.
+•	Barra Lateral (st.sidebar):
+o	Cria campos para o usuário inserir a URL da API.
+o	Cria um botão de ligar/desligar (toggle) chamado "Conectar e Iniciar Feed ao Vivo" que controla a variável streaming_ativo.
+o	Cria um controle deslizante (slider) para ajustar de quantos em quantos segundos o sistema busca novos dados (frequencia_api).
+o	Adiciona um filtro de múltipla escolha para selecionar quais UFs exibir.
+o	Um botão para limpar o histórico.
+•	Containers (Placeholders): Cria espaços vazios na tela (st.empty()) para Métricas (KPIs), Gráficos, Mapa e Tabela. Isso é crucial para que esses elementos sejam atualizados no mesmo lugar da tela, em vez de ficarem sendo desenhados um embaixo do outro em loop infinito.
+5. Loop Principal de Processamento Contínuo
+Este é o motor do sistema "em tempo real". Ele roda em um laço while streaming_ativo:
+1.	Requisição: Chama a função buscar_dados_api para obter um novo registro.
+2.	Inferência de ML: Pega os dados do novo registro (fase_dia, clima, etc.), trata as variáveis categóricas (pd.get_dummies), e passa pelo modelo de Machine Learning (modelo_ml.predict) para prever se o acidente tem vítimas ou não. Também calcula a probabilidade (predict_proba).
+3.	Atualização de Estado: Junta (pd.concat) o registro recém chegado ao histórico armazenado no session_state. O .tail(150) garante que a memória não estoure, mantendo apenas os últimos 150 acidentes no painel. Aplica o filtro de UFs.
+4.	Renderização: Atualiza os componentes gráficos inserindo os dados nos respectivos placeholders:
+o	KPIs: Exibe 4 blocos de métricas (status da conexão, última UF, total capturado e alertas graves).
+o	Gráficos: Desenha um histograma cronológico usando a biblioteca Plotly (à esquerda) e um gráfico de barras por UF (à direita).
+o	Mapa: Usa o componente nativo st.map para plotar bolinhas no mapa baseadas nas colunas de latitude e longitude do dataframe.
+o	Tabela: Exibe os dados brutos recebidos em formato de tabela.
+5.	Atualização (Refresh): Pausa a execução pelos segundos definidos pelo usuário no slider (time.sleep(frequencia_api)) e força o aplicativo a rodar novamente desde o topo (st.rerun()), criando o efeito de uma tela que se atualiza sozinha dinamicamente.
+
+🚀 Execução
+streamlit run app.py
